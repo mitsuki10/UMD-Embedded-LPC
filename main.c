@@ -7,6 +7,7 @@
  ==============================================
  */
  
+#include <stdio.h>
 #include "main.h"
 
 #ifdef __USE_CMSIS
@@ -82,13 +83,21 @@ void init_ui(){
   rstate.holdtime = 200;
 }
 
+int already_printed = 0;
+
 void drive_ui(){
+
     // Calculate bits for shift register
-    
     rstate.bits = sstate.state;
     
     if (receive_done()){
-        rstate.bits = sstate.bitbuffer[0];
+        rstate.bits = (int)sstate.bit_buffer[0];
+        if (!already_printed){
+            //puts(sstate.bit_buffer);
+            already_printed = 1;
+        }
+    } else {
+        already_printed = 0;
     }
 
     // Step the shift register
