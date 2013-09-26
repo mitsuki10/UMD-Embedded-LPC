@@ -31,10 +31,8 @@ __CRP const unsigned int CRP_WORD = CRP_NO_CRP;
 #define SREG_CLOCK 9
 #define SREG_A     7
 
-#define UINPUT_1   0  // User input on pin 6
-
+#define UINPUT_RESET  0  // User input on pin 6
 #define SIGNAL_INPUT  6
-#define SIGNAL_OUTPUT 1
 
 int state = 0;
 int systime = 0;
@@ -56,16 +54,16 @@ int receive_done(){
 
 void init_ui(){
     
-  /*
+  
   // Set P0[0] to Input 
-  LPC_GPIO0->FIODIR &= ~(1 << UINPUT_1);
+  LPC_GPIO0->FIODIR &= ~(1 << UINPUT_RESET);
   // Enable Rising Edge Interrupt on P0[0]
-  LPC_GPIOINT->IO0IntEnR |= (1 << UINPUT_1);
+  LPC_GPIOINT->IO0IntEnR |= (1 << UINPUT_RESET);
   // Enable Falling Edge Interrupt on P0[0] 
-  LPC_GPIOINT->IO0IntEnF |= (1 << UINPUT_1);
+  LPC_GPIOINT->IO0IntEnF |= (1 << UINPUT_RESET);
   // Turn on External Interrupt 3 
   NVIC_EnableIRQ(EINT3_IRQn);
-  */
+  
 
   // Enable GPIO on pins for shift register, and set output to 0
   LPC_GPIO0 -> FIODIR |= (1 << SREG_CLOCK) | (1 << SREG_CLR) | (1 << SREG_A);
@@ -138,17 +136,22 @@ void TIMER0_IRQHandler() {
 void EINT3_IRQHandler() {
 
     // If the rising edge interrupt was triggered 
-    if((LPC_GPIOINT->IO0IntStatR >> UINPUT_1) & 1){
+    if((LPC_GPIOINT->IO0IntStatR >> UINPUT_RESET) & 1){
         state = 1;
+        if (sstate.state == SIGNAL_COMPLETE){
+            init_receive();
+        } else {
+            sstate.state = SIGNAL_COMPLETE;
+        }
     }
     
     // If the falling edge interrupt was triggered
-    if((LPC_GPIOINT->IO0IntStatF >> UINPUT_1) & 1){ // Turn off P0[UINPUT_1]
+    if((LPC_GPIOINT->IO0IntStatF >> UINPUT_RESET) & 1){ // Turn off P0[UINPUT_1]
         state = 0;
     }
     
     // Clear the Interrupt on P0[UINPUT_1]
-    LPC_GPIOINT->IO0IntClr |= (1 << UINPUT_1);
+    LPC_GPIOINT->IO0IntClr |= (1 << UINPUT_RESET);
 }
 
 // Main method
