@@ -120,6 +120,62 @@ clock_settings * calculate_clock_settings(int desired_frequency){
     return settings;        
 }
 
+// Enables control of time.
+void PLL0_feed_sequence(){
+    LPC_SC->PLL0FEED = 0xAA;
+    LPC_SC->PLL0FEED = 0x55;
+}
+
+// Utility function to apply system clock settings.
+// Use carefully to avoid bricking your LPC!
+void apply_clock_settings(clock_settings *settings){
+
+    if(LPC_SC->PLL0STAT & (1<<25)) { // If PLL0 is connected 
+        LPC_SC->PLL0CON &= ~(1<<1);  // Write disconnect flag 
+        PLL0_feed_sequence();        // Commit changes
+    }
+        
+    LPC_SC->PLL0CON &= ~(1<<0);     // Write disable flag 
+    PLL0_feed_sequence();           // Commit changes
+
+    // Change CPU Divider
+    // For some reason this address is not a member of LPC_SC ?!?
+    uint32_t *D_FACTOR_ADDRESS = (uint32_t *) 0x400FC104;
+    *D_FACTOR_ADDRESS = settings->val_D_factor;
+    
+    LPC_SC->CLKSRCSEL &= ~(1|2);                  // Zero out clock selector
+    LPC_SC->CLKSRCSEL = settings->val_CLKSRCSEL;  // Set clock selector  
+    PLL0_feed_sequence();                         // Commit changes
+    
+    if (!settings->val_PLL0CON) return;   // If PLL is not needed, we're done.
+            
+    // Get divider values
+    int bits_M = settings->val_M_factor;
+    int bits_N = settings->val_N_factor;
+    
+    // Shift N value to necessary bits
+    bits_N = bits_N << 23;
+    
+    // Zero out divider values
+    LPC_SC->PLL0CFG &= ~((1<<15) - 1);
+    LPC_SC->PLL0CFG &= ~(((1<<17) - 1) << 23);
+    
+    // Write divider values
+    LPC_SC->PLL0CFG |= bits_M;
+    LPC_SC->PLL0CFG |= bits_N;
+    PLL0_feed_sequence(); // Commit Changes
+    
+    // Enable PLL0
+    LPC_SC->PLL0CON |= 1;
+    PLL0_feed_sequence(); 
+    
+    // Wait 500 cycles. TODO: calculate correct wait time...
+    for (int i=0; i<500; i++);
+    LPC_SC->PLL0CON |= 2;      // Set PLL0 Connect Flag 
+    PLL0_feed_sequence();      // Commit Changes    
+}
+
+
 /* // Main function for use when compiled independently.
 int main(int argc, char *argv[]){
     if (argc != 2){
