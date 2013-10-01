@@ -169,10 +169,11 @@ void EINT3_IRQHandler() {
 // Main method
 int main(void) {
   
-  
+  /*
   // Calculate and apply clock settings
   clock_settings *clkset = calculate_clock_settings(120000000);  
   apply_clock_settings(clkset);
+  */
   
   init_ui();
   init_receive();

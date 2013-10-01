@@ -82,7 +82,6 @@ void receive_init( receive_state *state, volatile uint32_t *source, int mask){
 }
 
 void receive_match_flags(receive_state *state, int bit){
-
     state->last_eight_bits = state->last_eight_bits << 1;
     if (bit){ 
         state->last_eight_bits |=  (char) 1; 
@@ -106,7 +105,6 @@ void receive_sync_clock(receive_state *state, int systime, int bit){
         state->last_bit = bit;
         
         int time_delta = systime - state->systime_prev_pulse;
-        
         state->pulse_time_total += time_delta;
         state->num_pulses++;
         state->systime_prev_pulse = systime;
@@ -115,20 +113,18 @@ void receive_sync_clock(receive_state *state, int systime, int bit){
             
             if (state->num_pulses % 2 == 0){
                 state->avg_pulse_time = 
-                    state->pulse_time_total / state->num_pulses;
+                state->pulse_time_total / state->num_pulses;
             }
             
             state->systime_next_pulse = systime + state->avg_pulse_time;
-            state->systime_next_sample = state->systime_next_pulse + 
-                (state->avg_pulse_time/2); //+ (state->avg_pulse_time/4);
+            state->systime_next_sample = state->systime_next_pulse + (state->avg_pulse_time/2) + (state->avg_pulse_time/4);
         }
         
     } else {
-        if (state->num_pulses > 4){
+        if (state->num_pulses >= 4){
             if (systime > state->systime_next_sample){
                 state->state = SIGNAL_AWAIT_FRAME;
                 receive_match_flags(state, bit);
-                state->systime_next_sample += state->avg_pulse_time;
                 return;
             }
         }

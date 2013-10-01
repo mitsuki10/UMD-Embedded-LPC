@@ -42,25 +42,12 @@ __CRP const unsigned int CRP_WORD = CRP_NO_CRP;
 
 int state = 0;
 int systime = 0;
-receive_state    sstate;
+int value   = 0;
+//receive_state    sstate;
 SN74HC164N_state rstate;
-
-void init_receive(){
-    LPC_GPIO0->FIODIR &= ~(1 << SIGNAL_INPUT);
-    receive_init(&sstate, &LPC_GPIO0 -> FIOPIN, 1<<SIGNAL_INPUT);
-}
-
-void drive_receive(){
-    receive_step(&sstate, systime);
-}
-
-int receive_done(){
-    return sstate.state == SIGNAL_COMPLETE;
-}
 
 void init_ui(){
     
-  
   // Set P0[0] to Input 
   LPC_GPIO0->FIODIR &= ~(1 << UINPUT_RESET);
   // Enable Rising Edge Interrupt on P0[0]
@@ -92,17 +79,7 @@ int already_printed = 0;
 void drive_ui(){
 
     // Calculate bits for shift register
-    rstate.bits = sstate.state;
-    
-    if (receive_done()){
-        rstate.bits = (int)sstate.bit_buffer[0];
-        if (!already_printed){
-            //puts(sstate.bit_buffer);
-            already_printed = 1;
-        }
-    } else {
-        already_printed = 0;
-    }
+    rstate.bits = value;
 
     // Step the shift register
     SN74HC164N_step(&rstate);
@@ -133,9 +110,6 @@ void TIMER0_IRQHandler() {
     if (LPC_TIM0->IR & 1){
         systime++; // Increment time counter
         
-        // Drive receive
-        drive_receive();
-        
         // Drive UI
         drive_ui();        
         
@@ -146,16 +120,6 @@ void TIMER0_IRQHandler() {
 
 // External interrupt 3 handler
 void EINT3_IRQHandler() {
-
-    // If the rising edge interrupt was triggered 
-    if((LPC_GPIOINT->IO0IntStatR >> UINPUT_RESET) & 1){
-        state = 1;
-        if (sstate.state == SIGNAL_COMPLETE){
-            init_receive();
-        } else {
-            sstate.state = SIGNAL_COMPLETE;
-        }
-    }
     
     // If the falling edge interrupt was triggered
     if((LPC_GPIOINT->IO0IntStatF >> UINPUT_RESET) & 1){ // Turn off P0[UINPUT_1]
@@ -169,28 +133,44 @@ void EINT3_IRQHandler() {
 // Main method
 int main(void) {
   
-  
+  /*
   // Calculate and apply clock settings
   clock_settings *clkset = calculate_clock_settings(120000000);  
   apply_clock_settings(clkset);
+  */
   
   init_ui();
-  init_receive();
   init_timer(1199);
+  
+  // Power ADC
+  LPC_SC->PCONP |= 0x1 << 12;
+  
+  // Choose undivided peripheral clock for ADC
+  LPC_SC->PCLKSEL0 &= ~(3 << 24);
+  LPC_SC->PCLKSEL0 |= (1 << 14);
+  
+  LPC_ADC->ADCR &= 0xff00; // Set ADC clock divider.
+  LPC_PINCON->PINSEL0 |= 0x01 << 24;
+  
+  LPC_ADC->ADCR |= 1<<21;
   
   // Main loop
   while(1){
+  
+      //LPC_ADC->ADCR &= 0xFF;
+      //LPC_ADC->ADCR |= 0x1;
+  
+      //LPC_ADC->ADCR |= 0x7 << 24;
+      //while((LPC_ADC->ADGDR & (1 << 31)) == 0);
+      
+      value = LPC_ADC->ADGDR & (1 << 30);
     
-    // Hang out for a few cycles
-    for (int i=0; i<200; i++);
+      //value = (LPC_ADC->ADGDR >> 5) & 0x7f;
+      if (!(value & 0xff)) value = 1;
     
-    /*
-    // Do stuff based on global state
-    if (state == 1){
-        LPC_TIM0->TCR |= 2;
-    } else {
-        LPC_TIM0->TCR &= ~2;
-    }*/
+      // Hang out for a few cycles
+      for (int i=0; i<200; i++);
+
   }
   
   return 0;
